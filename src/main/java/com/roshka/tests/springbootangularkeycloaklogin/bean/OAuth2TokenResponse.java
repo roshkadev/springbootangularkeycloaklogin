@@ -1,5 +1,7 @@
 package com.roshka.tests.springbootangularkeycloaklogin.bean;
 
+import java.io.Serializable;
+
 public class OAuth2TokenResponse {
 
     private String access_token;

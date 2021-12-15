@@ -16,10 +16,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.server.WebSession;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 
-import javax.servlet.http.HttpSession;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
@@ -40,15 +40,13 @@ public class HomeController {
 
     @GetMapping("/")
     public String homePage(
-            HttpSession session,
-            Model model
+            Model model,
+            WebSession webSession
     )
     {
-
-        SBAKLSession sbaklSession = SessionManager.getCurrentSession(session);
+        SBAKLSession sbaklSession = SessionManager.getCurrentSession(webSession);
         if (sbaklSession != null) {
             model.addAttribute("appName", appName);
-            model.addAttribute("session", session);
             return "home";
         }
 
@@ -65,6 +63,7 @@ public class HomeController {
     @GetMapping("/auth-result")
     public String authResult(
             Model model,
+            WebSession webSession,
             String code,
             @RequestParam("session_state") String sessionState
     ) {
@@ -82,17 +81,21 @@ public class HomeController {
         params.add("code", code);
         params.add("redirect_uri", keycloakConfig.getRedirectURI());
         params.add("grant_type", "authorization_code");
-        //params.add("client_id", keycloakConfig.getClientId());
-        //params.add("client_secret", keycloakConfig.getClientSecret());
 
-        final OAuth2TokenResponse oAuth2TokenResponse = client
+        client
                 .post()
                 .body(
                         BodyInserters.fromFormData(params)
                 )
                 .retrieve()
                 .bodyToFlux(OAuth2TokenResponse.class)
-                .blockLast();
+                .subscribe(oAuth2TokenResponse -> {
+                            SBAKLSession sbaklSession = new SBAKLSession();
+                            sbaklSession.setoAuth2TokenResponse(oAuth2TokenResponse);
+                            webSession.getAttributes().put(SessionManager.CURRENT_SESSION_KEY, sbaklSession);
+                            model.addAttribute("session", sbaklSession);
+                        }
+                );
 
         model.addAttribute("code", code);
         model.addAttribute("sessionState", sessionState);
